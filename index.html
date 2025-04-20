@@ -52,7 +52,7 @@
   </div>
 
   <script>
-    const webhookUrl = 'https://YOUR_N8N_INSTANCE/webhook/barcode'; // Replace this
+    const webhookUrl = 'https://n8n.it-goetz.com/workflow/wcHQwe8NN3vfajN3'; // <-- Replace with your webhook
     const statusEl = document.getElementById('status');
     const toast = document.getElementById('toast');
     const toastMessage = document.getElementById('toast-message');
@@ -68,30 +68,29 @@
         type: "LiveStream",
         target: document.querySelector('#scanner-container'),
         constraints: {
-          facingMode: "environment",
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        },
+          facingMode: "environment"
+        }
       },
       decoder: {
         readers: ["ean_13_reader"]
       }
-    }, function (err) {
+    }, function(err) {
       if (err) {
         statusEl.textContent = "Error initializing camera: " + err.message;
+        console.error(err);
         return;
       }
       Quagga.start();
       statusEl.textContent = "Ready to scan!";
     });
 
-    Quagga.onDetected(function (data) {
+    Quagga.onDetected(function(data) {
       if (scanned) return;
 
       const code = data.codeResult.code;
 
-      if (code.length !== 13 || !/^\d+$/.test(code)) {
-        statusEl.textContent = `Invalid code (${code}). Must be 13 digits. Try again.`;
+      if (!code || code.length !== 13 || !/^\d+$/.test(code)) {
+        statusEl.textContent = `Invalid code: ${code}`;
         return;
       }
 
@@ -100,7 +99,6 @@
       currentProduct = null;
       statusEl.textContent = `Looking up barcode ${code}...`;
 
-      // Query OpenFoodFacts
       fetch(`https://world.openfoodfacts.org/api/v0/product/${code}.json`)
         .then(res => res.json())
         .then(productData => {
@@ -115,13 +113,13 @@
           statusEl.textContent = "Waiting for confirmation...";
         })
         .catch(err => {
-          toastMessage.innerHTML = `❌ Error querying product<br>${err.message}`;
+          toastMessage.innerHTML = `❌ Error looking up product<br>${err.message}`;
           toast.style.display = 'flex';
-          statusEl.textContent = "Lookup failed";
+          statusEl.textContent = "Lookup failed.";
         });
     });
 
-    toastButton.addEventListener('click', function () {
+    toastButton.addEventListener('click', function() {
       toast.style.display = 'none';
 
       if (!currentProduct) {
@@ -140,7 +138,7 @@
       })
         .then(res => {
           if (res.ok) {
-            statusEl.textContent = `Barcode ${currentCode} sent! Ready to scan next item.`;
+            statusEl.textContent = `Product sent! Scan the next one.`;
           } else {
             statusEl.textContent = `Error sending barcode`;
           }
