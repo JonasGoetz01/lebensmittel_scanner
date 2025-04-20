@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Barcode Scanner to n8n</title>
+  <title>Barcode Scanner + Search</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
   <style>
     body { font-family: sans-serif; text-align: center; padding: 20px; }
@@ -38,30 +38,85 @@
     #toast button:hover {
       background: #45a049;
     }
+
+    form { margin-top: 40px; }
+    input, button {
+      padding: 8px;
+      margin: 5px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+
+    #search-results {
+      margin-top: 20px;
+      text-align: left;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .result-item {
+      background: #f7f7f7;
+      padding: 10px;
+      margin-bottom: 10px;
+      border-radius: 6px;
+    }
+
+    .result-item button {
+      background: #2196F3;
+      color: white;
+      border: none;
+      padding: 4px 8px;
+      margin-top: 5px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .result-item button:hover {
+      background: #1976D2;
+    }
   </style>
 </head>
 <body>
 
-  <h1>Scan a Product</h1>
+  <h1>Scan or Search for a Product</h1>
+
+  <!-- Barcode Scanner -->
   <div id="scanner-container"></div>
   <p id="status">Initializing...</p>
 
+  <!-- Toast -->
   <div id="toast">
     <div id="toast-message"></div>
     <button id="toast-submit">Submit</button>
   </div>
 
+  <!-- Product Search Form -->
+  <form id="search-form">
+    <h2>Search OpenFoodFacts</h2>
+    <input type="text" id="search-name" placeholder="Product Name">
+    <input type="text" id="search-brand" placeholder="Brand">
+    <input type="text" id="search-store" placeholder="Store">
+    <button type="submit">Search</button>
+  </form>
+
+  <!-- Search Results -->
+  <div id="search-results"></div>
+
   <script>
-    const webhookUrl = 'https://n8n.it-goetz.com/webhook/7e78e3d4-fb3f-4810-9150-902b4b633170'; // <-- Replace with your webhook
+    const webhookUrl = 'https://YOUR_N8N_INSTANCE/webhook/barcode'; // Replace this
     const statusEl = document.getElementById('status');
     const toast = document.getElementById('toast');
     const toastMessage = document.getElementById('toast-message');
     const toastButton = document.getElementById('toast-submit');
+    const searchForm = document.getElementById('search-form');
+    const searchResults = document.getElementById('search-results');
 
     let scanned = false;
     let currentCode = '';
     let currentProduct = null;
 
+    // Init Quagga
     Quagga.init({
       inputStream: {
         name: "Live",
@@ -84,9 +139,9 @@
       statusEl.textContent = "Ready to scan!";
     });
 
+    // Barcode detection
     Quagga.onDetected(function(data) {
       if (scanned) return;
-
       const code = data.codeResult.code;
 
       if (!code || code.length !== 13 || !/^\d+$/.test(code)) {
@@ -119,7 +174,8 @@
         });
     });
 
-    toastButton.addEventListener('click', function() {
+    // Submit to n8n
+    toastButton.addEventListener('click', function () {
       toast.style.display = 'none';
 
       if (!currentProduct) {
@@ -150,6 +206,45 @@
           scanned = false;
           currentCode = '';
           currentProduct = null;
+        });
+    });
+
+    // Search handler
+    searchForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      const name = document.getElementById('search-name').value.trim();
+      const brand = document.getElementById('search-brand').value.trim();
+      const store = document.getElementById('search-store').value.trim();
+
+      const query = [
+        name && `product_name=${encodeURIComponent(name)}`,
+        brand && `brand=${encodeURIComponent(brand)}`,
+        store && `store=${encodeURIComponent(store)}`
+      ].filter(Boolean).join('&');
+
+      if (!query) return;
+
+      const url = `https://world.openfoodfacts.org/cgi/search.pl?search_simple=1&action=process&json=1&fields=product_name,brands,code&${query}`;
+
+      searchResults.innerHTML = `<p>Searching...</p>`;
+      fetch(url)
+        .then(res => res.json())
+        .then(data => {
+          if (data.products && data.products.length > 0) {
+            searchResults.innerHTML = data.products.slice(0, 10).map(p => `
+              <div class="result-item">
+                <strong>${p.product_name || 'Unnamed product'}</strong><br>
+                Brand: ${p.brands || 'N/A'}<br>
+                Barcode: ${p.code}<br>
+                <button onclick="navigator.clipboard.writeText('${p.code}')">Copy Barcode</button>
+              </div>
+            `).join('');
+          } else {
+            searchResults.innerHTML = `<p>No products found.</p>`;
+          }
+        })
+        .catch(err => {
+          searchResults.innerHTML = `<p>Error fetching results: ${err.message}</p>`;
         });
     });
   </script>
