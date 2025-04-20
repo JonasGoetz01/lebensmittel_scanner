@@ -22,6 +22,7 @@
       display: none;
       flex-direction: column;
       align-items: center;
+      z-index: 10;
     }
 
     #toast button {
@@ -51,7 +52,7 @@
   </div>
 
   <script>
-    const webhookUrl = 'https://n8n.it-goetz.com/webhook/7e78e3d4-fb3f-4810-9150-902b4b633170'; // Replace this
+    const webhookUrl = 'https://YOUR_N8N_INSTANCE/webhook/barcode'; // Replace this
     const statusEl = document.getElementById('status');
     const toast = document.getElementById('toast');
     const toastMessage = document.getElementById('toast-message');
@@ -59,6 +60,7 @@
 
     let scanned = false;
     let currentCode = '';
+    let currentProduct = null;
 
     Quagga.init({
       inputStream: {
@@ -66,11 +68,13 @@
         type: "LiveStream",
         target: document.querySelector('#scanner-container'),
         constraints: {
-          facingMode: "environment"
+          facingMode: "environment",
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
         },
       },
       decoder: {
-        readers: ["ean_reader", "upc_reader", "ean_8_reader"]
+        readers: ["ean_13_reader"]
       }
     }, function (err) {
       if (err) {
@@ -83,39 +87,72 @@
 
     Quagga.onDetected(function (data) {
       if (scanned) return;
-      scanned = true;
 
-      currentCode = data.codeResult.code;
-      toastMessage.textContent = `Scanned: ${currentCode}`;
-      toast.style.display = 'flex';
-      statusEl.textContent = "Waiting for confirmation...";
+      const code = data.codeResult.code;
+
+      if (code.length !== 13 || !/^\d+$/.test(code)) {
+        statusEl.textContent = `Invalid code (${code}). Must be 13 digits. Try again.`;
+        return;
+      }
+
+      scanned = true;
+      currentCode = code;
+      currentProduct = null;
+      statusEl.textContent = `Looking up barcode ${code}...`;
+
+      // Query OpenFoodFacts
+      fetch(`https://world.openfoodfacts.org/api/v0/product/${code}.json`)
+        .then(res => res.json())
+        .then(productData => {
+          if (productData.status === 1) {
+            const name = productData.product.product_name || 'Unnamed product';
+            currentProduct = productData.product;
+            toastMessage.innerHTML = `✅ <strong>${name}</strong><br>Barcode: ${code}`;
+          } else {
+            toastMessage.innerHTML = `❌ Product not found<br>Barcode: ${code}`;
+          }
+          toast.style.display = 'flex';
+          statusEl.textContent = "Waiting for confirmation...";
+        })
+        .catch(err => {
+          toastMessage.innerHTML = `❌ Error querying product<br>${err.message}`;
+          toast.style.display = 'flex';
+          statusEl.textContent = "Lookup failed";
+        });
     });
 
     toastButton.addEventListener('click', function () {
-      // Hide toast
       toast.style.display = 'none';
+
+      if (!currentProduct) {
+        statusEl.textContent = "Cannot submit: product not found.";
+        scanned = false;
+        currentCode = '';
+        return;
+      }
+
       statusEl.textContent = "Sending to n8n...";
 
-      // Send barcode to webhook
       fetch(webhookUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ barcode: currentCode })
+        body: JSON.stringify({ barcode: currentCode, product: currentProduct })
       })
-      .then(res => {
-        if (res.ok) {
-          statusEl.textContent = `Barcode ${currentCode} sent! Ready to scan next item.`;
-        } else {
-          statusEl.textContent = `Error sending barcode`;
-        }
-      })
-      .catch(err => {
-        statusEl.textContent = `Fetch error: ${err.message}`;
-      })
-      .finally(() => {
-        scanned = false;
-        currentCode = '';
-      });
+        .then(res => {
+          if (res.ok) {
+            statusEl.textContent = `Barcode ${currentCode} sent! Ready to scan next item.`;
+          } else {
+            statusEl.textContent = `Error sending barcode`;
+          }
+        })
+        .catch(err => {
+          statusEl.textContent = `Fetch error: ${err.message}`;
+        })
+        .finally(() => {
+          scanned = false;
+          currentCode = '';
+          currentProduct = null;
+        });
     });
   </script>
 
