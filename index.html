@@ -63,17 +63,17 @@
     }
 
     .result-item button {
-      background: #2196F3;
+      background: #4CAF50;
       color: white;
       border: none;
-      padding: 4px 8px;
+      padding: 6px 12px;
       margin-top: 5px;
       border-radius: 4px;
       cursor: pointer;
     }
 
     .result-item button:hover {
-      background: #1976D2;
+      background: #45a049;
     }
   </style>
 </head>
@@ -217,7 +217,7 @@
                 <strong>${p.product_name || 'Unnamed product'}</strong><br>
                 Brand: ${p.brands || 'N/A'}<br>
                 Barcode: ${p.code}<br>
-                <button onclick="navigator.clipboard.writeText('${p.code}')">Copy Barcode</button>
+                <button onclick="addToNotion('${p.code}')">Add to Notion</button>
               </div>
             `).join('');
           } else {
@@ -228,6 +228,29 @@
           searchResults.innerHTML = `<p>Error fetching results: ${err.message}</p>`;
         });
     });
+
+    function addToNotion(barcode) {
+      fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`)
+        .then(res => res.json())
+        .then(productData => {
+          const product = productData.status === 1 ? productData.product : null;
+          return fetch(webhookUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ barcode: barcode, product: product })
+          });
+        })
+        .then(res => {
+          if (res.ok) {
+            alert(`Product ${barcode} sent to Notion!`);
+          } else {
+            alert(`Error sending product to Notion.`);
+          }
+        })
+        .catch(err => {
+          alert(`Failed to send product: ${err.message}`);
+        });
+    }
   </script>
 </body>
 </html>
