@@ -120,7 +120,7 @@
         }
       },
       decoder: {
-        readers: ["ean_13_reader"]
+        readers: ["ean_reader", "upc_reader", "ean_8_reader"]
       }
     }, function(err) {
       if (err) {
