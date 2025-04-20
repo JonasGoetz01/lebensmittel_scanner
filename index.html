@@ -91,9 +91,7 @@
 
   <form id="search-form">
     <h2>Search OpenFoodFacts</h2>
-    <input type="text" id="search-name" placeholder="Product Name">
-    <input type="text" id="search-brand" placeholder="Brand">
-    <input type="text" id="search-store" placeholder="Store">
+    <input type="text" id="search-query" placeholder="Enter product name, brand, or store">
     <button type="submit">Search</button>
   </form>
 
@@ -204,20 +202,10 @@
 
     searchForm.addEventListener('submit', function(e) {
       e.preventDefault();
-      const name = document.getElementById('search-name').value.trim();
-      const brand = document.getElementById('search-brand').value.trim();
-      const store = document.getElementById('search-store').value.trim();
+      const query = document.getElementById('search-query').value.trim();
+      if (!query) return;
 
-      const params = new URLSearchParams({
-        fields: 'code,product_name,brands',
-        page_size: '10',
-        page: '1'
-      });
-      if (brand) params.set('brands_tags', brand);
-      if (store) params.set('stores_tags', store);
-      if (name) params.set('product_name', name);
-
-      const url = `https://world.openfoodfacts.net/api/v2/search?${params.toString()}`;
+      const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&fields=product_name,brands,code`;
 
       searchResults.innerHTML = `<p>Searching...</p>`;
       fetch(url)
