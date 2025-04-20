@@ -52,7 +52,7 @@
   </div>
 
   <script>
-    const webhookUrl = 'https://n8n.it-goetz.com/workflow/wcHQwe8NN3vfajN3'; // <-- Replace with your webhook
+    const webhookUrl = 'https://n8n.it-goetz.com/webhook/7e78e3d4-fb3f-4810-9150-902b4b633170'; // <-- Replace with your webhook
     const statusEl = document.getElementById('status');
     const toast = document.getElementById('toast');
     const toastMessage = document.getElementById('toast-message');
@@ -72,7 +72,7 @@
         }
       },
       decoder: {
-        readers: ["ean_13_reader"]
+        readers: ["ean_reader", "upc_reader", "ean_8_reader"]
       }
     }, function(err) {
       if (err) {
